@@ -1283,33 +1283,43 @@
      is good for Capture region, but it means Capture full screen was silently
      grabbing whatever was shared — if you first shared one window, you got that
      window, not your monitor. Detect the mismatch and offer to re-pick. */
-  /* Burn the capture date/time into the bottom-left of a canvas. */
+  /* Burn the URL under test (top-left) and the capture date/time (bottom-left) into a canvas. */
   function stampTimestamp(canvas){
     try{
       const ctx=canvas.getContext("2d"); if(!ctx) return;
       const w=canvas.width, h=canvas.height; if(!w||!h) return;
-      const d=new Date(), p=n=>String(n).padStart(2,"0");
-      const text=d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds());
       const fs=Math.max(14, Math.round(w/64));
+      const padx=Math.round(fs*0.6), pady=Math.round(fs*0.45), r=Math.round(fs*0.28);
       ctx.save();
       ctx.font="500 "+fs+"px ui-monospace, Menlo, Consolas, 'Courier New', monospace";
-      const padx=Math.round(fs*0.6), pady=Math.round(fs*0.45);
-      const tw=ctx.measureText(text).width;
-      const bw=tw+padx*2, bh=fs+pady*2;
-      const bx=padx, by=h-bh-padx, r=Math.round(fs*0.28);
-      ctx.beginPath();
-      ctx.moveTo(bx+r,by);
-      ctx.arcTo(bx+bw,by,bx+bw,by+bh,r);
-      ctx.arcTo(bx+bw,by+bh,bx,by+bh,r);
-      ctx.arcTo(bx,by+bh,bx,by,r);
-      ctx.arcTo(bx,by,bx+bw,by,r);
-      ctx.closePath();
-      ctx.fillStyle="rgba(13,17,20,0.74)";
-      ctx.fill();
-      ctx.fillStyle="#ffffff";
-      ctx.textBaseline="middle";
-      ctx.textAlign="left";
-      ctx.fillText(text, bx+padx, by+bh/2+1);
+      ctx.textBaseline="middle"; ctx.textAlign="left";
+      function badge(text, atTop){
+        let t=String(text);
+        const maxw=w-padx*4;                       // keep the badge inside the frame
+        if(ctx.measureText(t).width>maxw){
+          while(t.length>1 && ctx.measureText(t+"\u2026").width>maxw) t=t.slice(0,-1);
+          t=t+"\u2026";
+        }
+        const tw=ctx.measureText(t).width;
+        const bw=tw+padx*2, bh=fs+pady*2;
+        const bx=padx, by=atTop ? padx : (h-bh-padx);
+        ctx.beginPath();
+        ctx.moveTo(bx+r,by);
+        ctx.arcTo(bx+bw,by,bx+bw,by+bh,r);
+        ctx.arcTo(bx+bw,by+bh,bx,by+bh,r);
+        ctx.arcTo(bx,by+bh,bx,by,r);
+        ctx.arcTo(bx,by,bx+bw,by,r);
+        ctx.closePath();
+        ctx.fillStyle="rgba(13,17,20,0.74)";
+        ctx.fill();
+        ctx.fillStyle="#ffffff";
+        ctx.fillText(t, bx+padx, by+bh/2+1);
+      }
+      const url=(typeof meta==="object" && meta && meta.urlUnderTest) ? String(meta.urlUnderTest).trim() : "";
+      if(url) badge(url, true);
+      const d=new Date(), p=n=>String(n).padStart(2,"0");
+      const ts=d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds());
+      badge(ts, false);
       ctx.restore();
     }catch(e){}
   }
@@ -1491,7 +1501,7 @@
     const targets=targetsForCapture();
     if(!targets.length){ toast("Add a screen first (click \u201CAdd screen\u201D).","err"); return; }
     let n=0;
-    targets.forEach(s=>{ const c=snapVideo(s.video); if(c){ addShot(c.toDataURL("image/png")); n++; } });
+    targets.forEach(s=>{ const c=snapVideo(s.video); if(c){ stampTimestamp(c); addShot(c.toDataURL("image/png")); n++; } });
     if(n){ liveCount+=n; flashCapture(); updateCount(); }
     else toast("Nothing captured yet — the source may still be starting.","err");
   }
@@ -1731,6 +1741,7 @@
     // also grab a still frame and add it as a shot, tagged with the clip filename
     const stillFrame=snapVideo(shareVideo);
     if(stillFrame){
+      stampTimestamp(stillFrame);
       const s=addShot(stillFrame.toDataURL("image/png"));
       if(s){
         s.desc = `Video clip recorded: ${filename}\nDuration: ${durSec}s\n(This image is the final frame of the clip. The full video downloads to your computer separately.)`;
@@ -2131,7 +2142,7 @@
       toast("Stitching failed \u2014 try recording again.","err");
       return;
     }
-    const s = addShot(dataUrl);
+    stampTimestamp(stitched); const s = addShot(stitched.toDataURL("image/png"));
     if(s){ s.step = `Full-page capture (${frames.length} frames stitched)`; }
     setFpMsg({ kind:"ok", text:`Full-page shot saved (${stitched.width}\u00D7${stitched.height}) \u2014 it's in the gallery.` });
     renderPanel();
@@ -2629,7 +2640,7 @@
     if(!sel||sel.w<8||sel.h<8){ sel=null; drawCrop(); cropLabel.innerHTML="Selection too small. Drag a larger area."; return; }
     const out=document.createElement("canvas"); out.width=Math.round(sel.w/scale); out.height=Math.round(sel.h/scale);
     out.getContext("2d").drawImage(srcCanvas,sel.x/scale,sel.y/scale,sel.w/scale,sel.h/scale,0,0,out.width,out.height);
-    addShot(out.toDataURL("image/png")); closeCropper(); toast(`Region captured \u2192 ${captureTargetLabel()}`,"ok");
+    stampTimestamp(out); addShot(out.toDataURL("image/png")); closeCropper(); toast(`Region captured \u2192 ${captureTargetLabel()}`,"ok");
   }
   function closeCropper(){ cropper.classList.remove("open"); srcCanvas=null; sel=null; }
   cropCanvas.addEventListener("mousedown",cStart); cropCanvas.addEventListener("mousemove",cMove); window.addEventListener("mouseup",cEnd);
