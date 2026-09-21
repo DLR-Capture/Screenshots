@@ -1283,38 +1283,42 @@
      is good for Capture region, but it means Capture full screen was silently
      grabbing whatever was shared — if you first shared one window, you got that
      window, not your monitor. Detect the mismatch and offer to re-pick. */
-  /* Burn the URL under test and the capture date/time into one badge at the
-     top-left, so it stays visible even on very tall full-page/stitched shots. */
+  /* Burn the URL under test (top-left) and the capture date/time
+     (bottom-right, Windows-style) into a canvas. */
   function stampTimestamp(canvas){
     try{
       const ctx=canvas.getContext("2d"); if(!ctx) return;
       const w=canvas.width, h=canvas.height; if(!w||!h) return;
       const fs=Math.max(16, Math.round(Math.min(w,1600)/56));
-      const padx=Math.round(fs*0.6), pady=Math.round(fs*0.5), r=Math.round(fs*0.28), gap=Math.round(fs*0.32);
+      const padx=Math.round(fs*0.6), pady=Math.round(fs*0.5), r=Math.round(fs*0.28), m=Math.round(fs*0.7);
       ctx.save();
       ctx.font="500 "+fs+"px ui-monospace, Menlo, Consolas, 'Courier New', monospace";
       ctx.textBaseline="middle"; ctx.textAlign="left";
-      const d=new Date(), p=n=>String(n).padStart(2,"0");
-      const ts=d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds());
-      const url=(typeof meta==="object" && meta && meta.urlUnderTest) ? String(meta.urlUnderTest).trim() : "";
       const maxw=w-padx*4;
       const fit=text=>{ let t=String(text); if(ctx.measureText(t).width<=maxw) return t; while(t.length>1 && ctx.measureText(t+"\u2026").width>maxw) t=t.slice(0,-1); return t+"\u2026"; };
-      const lines=[]; if(url) lines.push(fit(url)); lines.push(fit(ts));
-      let tw=0; lines.forEach(t=>{ tw=Math.max(tw, ctx.measureText(t).width); });
-      const lh=fs+gap;
-      const bw=tw+padx*2, bh=pady*2 + lines.length*fs + (lines.length-1)*gap;
-      const bx=padx, by=padx;
-      ctx.beginPath();
-      ctx.moveTo(bx+r,by);
-      ctx.arcTo(bx+bw,by,bx+bw,by+bh,r);
-      ctx.arcTo(bx+bw,by+bh,bx,by+bh,r);
-      ctx.arcTo(bx,by+bh,bx,by,r);
-      ctx.arcTo(bx,by,bx+bw,by,r);
-      ctx.closePath();
-      ctx.fillStyle="rgba(13,17,20,0.80)";
-      ctx.fill();
-      ctx.fillStyle="#ffffff";
-      lines.forEach((t,i)=>{ ctx.fillText(t, bx+padx, by+pady+fs/2+i*lh); });
+      function badge(text, corner){
+        const t=fit(text);
+        const tw=ctx.measureText(t).width;
+        const bw=tw+padx*2, bh=fs+pady*2;
+        const bx = corner==="br" ? (w-bw-m) : m;
+        const by = corner==="br" ? (h-bh-m) : m;
+        ctx.beginPath();
+        ctx.moveTo(bx+r,by);
+        ctx.arcTo(bx+bw,by,bx+bw,by+bh,r);
+        ctx.arcTo(bx+bw,by+bh,bx,by+bh,r);
+        ctx.arcTo(bx,by+bh,bx,by,r);
+        ctx.arcTo(bx,by,bx+bw,by,r);
+        ctx.closePath();
+        ctx.fillStyle="rgba(13,17,20,0.80)";
+        ctx.fill();
+        ctx.fillStyle="#ffffff";
+        ctx.fillText(t, bx+padx, by+bh/2+1);
+      }
+      const url=(typeof meta==="object" && meta && meta.urlUnderTest) ? String(meta.urlUnderTest).trim() : "";
+      if(url) badge(url, "tl");
+      const d=new Date(), p=n=>String(n).padStart(2,"0");
+      const ts=d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds());
+      badge(ts, "br");
       ctx.restore();
     }catch(e){}
   }
